@@ -2,15 +2,14 @@ with grouped_data as (
 	select 
 		id_dynamo
 		, created_at::timestamptz
-		, date_trunc('minute', to_timestamp(created_at, 'YYYY-MM-DD HH24:MI:SS')) - interval '1 minute' * 
-			(extract(minute from to_timestamp(created_at, 'YYYY-MM-DD HH24:MI:SS'))::int % 5) as interval_5min
+		, date_trunc('minute', to_timestamp(created_at, 'YYYY-MM-DD HH24:MI:SS')) - interval '1 minute' * (extract(minute from to_timestamp(created_at, 'YYYY-MM-DD HH24:MI:SS'))::int % 5) as interval_5min
 		, female_peak 
 		, male_peak 
 		, client_id 
 		, zone_id 
 		, recording_time::timestamptz
 	from viseetor_line
-	--where created_at between '2024-07-03 22:45:00' and '2024-07-03 22:50:59'
+	--where created_at between '2024-09-24 11:30:00' and '2024-09-24 11:59:59'
 )
 , female_mode as (
 	select 
