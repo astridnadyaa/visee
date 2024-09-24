@@ -43,13 +43,13 @@ postgres_local = env["postgres_local_url"]
 # conf = Variable.get("visee_config", deserialize_json=True)
 # schedule_interval = conf["schedule_interval"]
 # database_url=postgres_visee
-database_url=postgres_local
+database_url = postgres_local
 table_name = 'viseetor_raw'
 
 # -------------------Args------------------------
 args = {
     'owner': 'Moonlay',
-    'start_date': datetime(2024, 9, 17, tzinfo=local_tz),
+    'start_date': datetime(2024, 9, 24, tzinfo=local_tz),
     'retries': 2,
     'retry_delay': timedelta(seconds=90)
     # 'depends_on_past': False,
@@ -59,7 +59,7 @@ args = {
 dag = DAG(
     dag_id='dag_live_demographic_etl',
     default_args=args,
-    schedule_interval= None, #schedule_interval,
+    schedule_interval='@daily', #schedule_interval,
     catchup=False,
     tags=['visee'],
     concurrency=2,
@@ -101,9 +101,9 @@ def get_filter_time(ti, **kwargs):
     ti.xcom_push(key='filter_date', value=get_today)
 
 def test_filter_time (ti, **kwargs):
-    filter_start = '2024-07-03T22:50:00' ###
-    filter_end = '2024-07-03T22:54:59'###
-    filter_date = '2024-07-03' ###
+    filter_start = '2024-09-24T12:30:00' ###
+    filter_end = '2024-09-24T12:59:59'###
+    filter_date = '2024-09-24' ###
 
     filter_start_datetime = datetime.strptime(filter_start, "%Y-%m-%dT%H:%M:%S")
     filter_end_datetime = datetime.strptime(filter_end, "%Y-%m-%dT%H:%M:%S")
@@ -133,8 +133,8 @@ def dynamodb_to_postgres(filter_start, filter_end, **kwargs):
     log.info(f"Filtering data from DynamoDB table between {filter_start_datetime} and {filter_end_datetime}")
 
     filter_expression = (Attr('created_at').gte(filter_start_datetime)
-                        & Attr('created_at').lte(filter_end_datetime)
-                        & Attr('camera_type').eq('far'))
+                        & Attr('created_at').lte(filter_end_datetime))
+                        # & Attr('camera_type').eq('far'))
     
     response = table.scan(
         FilterExpression=filter_expression
@@ -152,20 +152,19 @@ def dynamodb_to_postgres(filter_start, filter_end, **kwargs):
         log.info(f"Data types before convert: {df_raw.dtypes}")
 
         # Convert Data Type & Rename Columns
-        df_raw.rename(columns={'id':'id_dynamo'}, inplace=True)
-        df_raw['id'] = df_raw['id'].astype('text')
-        df_raw['age'] = df_raw['age'].astype('text')
-        df_raw['attributes'] = df_raw['attributes'].astype('text')
-        df_raw['camera_type'] = df_raw['camera_type'].astype('text')
+        df_raw['id'] = df_raw['id'].astype(str)
+        df_raw['age'] = df_raw['age'].astype(str)
+        df_raw['attributes'] = df_raw['attributes'].astype(str)
+        df_raw['camera_type'] = df_raw['camera_type'].astype(str)
         df_raw['client_id'] = df_raw['client_id'].astype('int')
         df_raw['confidence'] = df_raw['confidence'].astype('int')
         df_raw['created_at'] = pd.to_datetime(df_raw['created_at'], utc=True, errors='coerce')
         df_raw['device_id'] = df_raw['device_id'].astype('int')
-        df_raw['emotion'] = df_raw['emotion'].astype('text')
-        df_raw['gender'] = df_raw['gender'].astype('text')
+        df_raw['emotion'] = df_raw['emotion'].astype(str)
+        df_raw['gender'] = df_raw['gender'].astype(str)
         df_raw['object_id'] = df_raw['object_id'].astype('int')
         df_raw['recording_time'] = pd.to_datetime(df_raw['recording_time'], utc=True, errors='coerce')
-        df_raw['session_id'] = df_raw['session_id'].astype('text')
+        df_raw['session_id'] = df_raw['session_id'].astype(str)
         df_raw['updated_at'] = pd.to_datetime(df_raw['updated_at'], utc=True, errors='coerce')
         df_raw['zone_id'] = df_raw['zone_id'].astype('int')
       
@@ -192,8 +191,8 @@ get_data_dynamodb = PythonOperator(
 # ------------------Transform and Load Data-------------------
 raw_to_live_demographic = PostgresOperator(
     task_id='to_live_demographic',
-    postgres_conn_id='visee_postgres',
-    sql='sql/live-demographic.sql',
+    postgres_conn_id='postgres_local',
+    sql='sql/live-demographic.sql', 
     params={
         'filter_date': '{{ ti.xcom_pull(task_ids="get_filter", key="filter_date") }}'
     },
